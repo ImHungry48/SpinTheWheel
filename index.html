@@ -82,6 +82,8 @@ Barbie: The Pearl Princess</textarea>
     let selectedIndex = null;   // which wedge is popped
     let popAmount = 0;
     let popTarget = 0;
+    let glowPhase = 0;
+    let glowActive = false;
 
     let previewSpin = true;  
     const previewSpeed = 0.002;    // radians per frame (smaller = slower)
@@ -123,6 +125,9 @@ Barbie: The Pearl Princess</textarea>
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(rotation);
+      if (glowActive) {
+        glowPhase += .12; // this is the speed of blink (the smaller the slower)
+      }
       popAmount += (popTarget - popAmount) * 0.15;
 
       for (let i = 0; i < items.length; i++) {
@@ -132,8 +137,12 @@ Barbie: The Pearl Princess</textarea>
 
         // --- pop transform for the wedge ---
         ctx.save();
-        if (i === selectedIndex) {
-            ctx.translate(Math.cos(mid) * popAmount, Math.sin(mid) * popAmount);
+        if (i === selectedIndex && glowActive) {
+            const glow = 10 + Math.sin(glowPhase) * 10; // 0 → 20 → 0
+            ctx.shadowColor = "#f472b6";  // hot pink glow
+            ctx.shadowBlur = glow;
+        } else {
+            ctx.shadowBlur = 0;
         }
 
         // Segment
@@ -213,6 +222,7 @@ Barbie: The Pearl Princess</textarea>
     function spin() {
       if (spinning || items.length < 2) return;
       spinning = true;
+      glowActive = false;
       popTarget = 0;
       spinBtn.disabled = true;
       resultEl.textContent = "Result: …";
@@ -238,6 +248,8 @@ Barbie: The Pearl Princess</textarea>
         } else {
             const winnerIdx = pickIndexFromRotation();
             selectedIndex = winnerIdx;
+            glowActive = true;
+            glowPhase = 0;
 
             const winner = items[winnerIdx];
             resultEl.textContent = `Result: ${winner}`;
