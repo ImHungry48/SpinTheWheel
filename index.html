@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Spin the Wheel</title>
+  <style>
+    body { font-family: system-ui, Arial; margin: 0; padding: 24px; display: grid; gap: 16px; justify-items: center; }
+    .wrap { display: grid; gap: 12px; justify-items: center; width: min(720px, 100%); }
+    .stage { position: relative; width: min(720px, 100%); aspect-ratio: 1 / 1; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .pointer {
+      position: absolute; top: -6px; left: 50%; transform: translateX(-50%);
+      width: 0; height: 0;
+      border-left: 14px solid transparent;
+      border-right: 14px solid transparent;
+      border-bottom: 22px solid #A1135B;
+      filter: drop-shadow(0 2px 2px rgba(0,0,0,.25));
+    }
+    button { padding: 10px 14px; border: 0; border-radius: 10px; background: #E0218A; color: #000; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    textarea { width: 100%; min-height: 120px; padding: 12px; border-radius: 12px; border: 1px solid #E0218A; }
+    .row { display: grid; gap: 10px; width: min(px, 100%); }
+    .result { font-size: 18px; font-weight: 600; }
+    .hint { color: #A1135B; font-size: 13px; line-height: 1.3; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1 style="margin:0;">Spin the Wheel</h1>
+
+    <div class="stage" aria-label="Prize wheel">
+      <div class="pointer" aria-hidden="true"></div>
+      <canvas id="wheel" width="1600" height="1600"></canvas>
+    </div>
+
+    <button id="spinBtn">Spin</button>
+    <div class="result" id="result">Result: —</div>
+
+    <div class="row">
+      <label for="items"><b>Wheel items</b> (one per line):</label>
+      <textarea id="items">Barbie in the Nutcracker
+Barbie as Rapunzel
+Barbie of Swan Lake
+Barbie as the Princess and the Pauper
+Barbie: Fairytopia
+Barbie and the Magic of Pegasus
+Barbie Fairytopia: Mermaidia
+The Barbie Diaries
+Barbie in the 12 Dancing Princesses
+Barbie Fairytopia: Magic of the Rainbow
+Barbie: Mariposa
+Barbie & the Diamond Castle
+Barbie: Thumbelina
+Barbie and the Three Musketeers
+Barbie in a Mermaid Tale
+Barbie: A Fashion Fairytale
+Barbie: A Fairy Secret
+Barbie: Princess Charm School
+Barbie in a Mermaid Tale 2
+Barbie: The Princess & the Popstar
+Barbie: Mariposa & the Fairy Princess
+Barbie: The Pearl Princess</textarea>
+      <div class="hint">
+        Tip: edit the list, then click anywhere outside the box (or press Tab) to redraw.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("wheel");
+    const ctx = canvas.getContext("2d");
+    const spinBtn = document.getElementById("spinBtn");
+    const itemsBox = document.getElementById("items");
+    const resultEl = document.getElementById("result");
+
+    // State
+    let items = parseItems(itemsBox.value);
+    let rotation = 0;            // remember radians
+    let spinning = false;
+    let hasSpun = false;
+    let selectedIndex = null;   // which wedge is popped
+    let popAmount = 0;
+    let popTarget = 0;
+
+    let previewSpin = true;  
+    const previewSpeed = 0.002;    // radians per frame (smaller = slower)
+    function previewLoop() {
+        if (!spinning && !hasSpun && previewSpin) {
+            rotation += previewSpeed;
+            drawWheel();
+        }
+        requestAnimationFrame(previewLoop);
+        }
+        previewLoop();
+
+    function parseItems(text) {
+      return text
+        .split("\n")
+        .map(s => s.trim())
+        .filter(Boolean);
+    }
+
+    function drawWheel() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const radius = Math.min(cx, cy) - 20;
+
+      if (items.length === 0) {
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 40px system-ui";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("Add items", cx, cy);
+        return;
+      }
+
+      const slice = (Math.PI * 2) / items.length;
+
+      // Outer circle
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(rotation);
+      popAmount += (popTarget - popAmount) * 0.15;
+
+      for (let i = 0; i < items.length; i++) {
+        const start = i * slice;
+        const end = start + slice;
+        const mid = start + slice / 2;
+
+        // --- pop transform for the wedge ---
+        ctx.save();
+        if (i === selectedIndex) {
+            ctx.translate(Math.cos(mid) * popAmount, Math.sin(mid) * popAmount);
+        }
+
+        // Segment
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, radius, start, end);
+        ctx.closePath();
+
+        // Fill + stroke
+        ctx.fillStyle = i % 2 === 0 ? "#fbcfe8" : "#f9a8d4";
+        ctx.fill();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 6;
+        ctx.stroke();
+
+        // Text
+        ctx.save();
+        ctx.rotate(mid);
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#111";
+
+        const label = items[i];
+        const x = radius * 0.7;
+
+        // Auto-shrink so it fits (no truncation)
+        const maxWidth = radius - x - 30;
+        let fontSize = 28;
+        do {
+            ctx.font = `bold ${fontSize}px system-ui`;
+            fontSize--;
+        } while (fontSize > 12 && ctx.measureText(label).width > maxWidth);
+
+        ctx.fillText(label, x, 0);
+        ctx.restore();     // restore rotated text
+
+        ctx.restore();     // restore pop transform
+        }
+
+      // Center cap
+      ctx.beginPath();
+      ctx.arc(0, 0, 70, 0, Math.PI * 2);
+      ctx.fillStyle = "#111";
+      ctx.fill();
+
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 26px system-ui";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("SPIN", 0, 0);
+
+      ctx.restore();
+    }
+
+    // Given current rotation, determine which item is under the pointer (top).
+    function pickIndexFromRotation() {
+      // Pointer is at -90deg (top). We rotate wheel by `rotation`.
+      const twoPi = Math.PI * 2;
+      const slice = twoPi / items.length;
+
+      // Normalize rotation to [0, 2π)
+      const r = ((rotation % twoPi) + twoPi) % twoPi;
+
+      // Angle at pointer in wheel coordinates:
+      // pointer angle is 3π/2 (top) but since wheel is rotated, we subtract rotation.
+      const pointerAngle = (3 * Math.PI) / 2;
+      const a = (pointerAngle - r + twoPi) % twoPi;
+
+      const idx = Math.floor(a / slice) % items.length;
+      return idx;
+    }
+
+    function easeOutCubic(t) {
+      return 1 - Math.pow(1 - t, 3);
+    }
+
+    function spin() {
+      if (spinning || items.length < 2) return;
+      spinning = true;
+      popTarget = 0;
+      spinBtn.disabled = true;
+      resultEl.textContent = "Result: …";
+
+      const start = performance.now();
+      const duration = 2800 + Math.random() * 900;
+
+      // Spin multiple turns + random offset
+      const extraTurns = 6 + Math.random() * 4; // 6–10 turns
+      const target = rotation + extraTurns * Math.PI * 2 + Math.random() * Math.PI * 2;
+
+      const from = rotation;
+
+      function frame(now) {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = easeOutCubic(t);
+        rotation = from + (target - from) * eased;
+
+        drawWheel();
+
+        if (t < 1) {
+          requestAnimationFrame(frame);
+        } else {
+            const winnerIdx = pickIndexFromRotation();
+            selectedIndex = winnerIdx;
+
+            const winner = items[winnerIdx];
+            resultEl.textContent = `Result: ${winner}`;
+
+            spinning = false;
+            spinBtn.disabled = false;
+
+            // trigger pop + animate it for ~300ms
+            popTarget = 28;
+            const popStart = performance.now();
+
+            function popFrame(now) {
+            drawWheel();
+            if (now - popStart < 350) requestAnimationFrame(popFrame);
+            }
+            requestAnimationFrame(popFrame);
+            }
+      }
+
+      hasSpun = true;
+
+      requestAnimationFrame(frame);
+    }
+
+    // Events
+    spinBtn.addEventListener("click", spin);
+
+    itemsBox.addEventListener("change", () => {
+      items = parseItems(itemsBox.value);
+      drawWheel();
+      resultEl.textContent = "Result: —";
+      selectedIndex = null;
+    });
+
+    // Initial render
+    drawWheel();
+  </script>
+</body>
+</html>
